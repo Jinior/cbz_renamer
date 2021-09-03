@@ -1,6 +1,7 @@
 import argparse
 import logging
 import zipfile
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -140,6 +141,17 @@ def process_path(input_path: Path, output_path: Path, force: bool, recurse: bool
             logging.debug(f"Valid extensions are: {VALID_SUFFIXES}")
             continue
         # TODO: actually process the file here
+
+def rebuild_cbz(file: Path):
+    """Create a new cbz file with the new naming structure
+        
+        Args:
+            file: The original cbz file
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_dir = Path(tmp_dir)
+        with zipfile.ZipFile(file) as original_cbz:
+            original_cbz.extractall(tmp_dir)
 
 
 if __name__ == "__main__":
