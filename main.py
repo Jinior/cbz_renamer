@@ -198,7 +198,7 @@ def build_rename_mapping(path: Path, prefix: Optional[Path] = None) -> Dict[Path
             prefix
         )  # The path the file had inside the zipfile
         # map the original path to a new path where entire zip_path is inside the filename
-        mapping[sub_path] = zip_path.joinpath(
+        mapping[sub_path] = zip_path.parent.joinpath(
             str(zip_path.as_posix()).replace("/", "_")
         )
     return mapping
