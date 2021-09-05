@@ -1,12 +1,9 @@
 import argparse
 import logging
-import zipfile
 import tempfile
+import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from typing import Tuple
+from typing import Dict, Optional, Tuple
 
 VALID_SUFFIXES = {".cbz", ".zip"}
 
@@ -140,18 +137,71 @@ def process_path(input_path: Path, output_path: Path, force: bool, recurse: bool
             )
             logging.debug(f"Valid extensions are: {VALID_SUFFIXES}")
             continue
-        # TODO: actually process the file here
+        output_file = output_path.joinpath(file.name)
+        if output_file.is_file() and not force:
+            # If the output file already exists
+            logging.debug(
+                f"Not processing file '{file}' because the output file already exists: {output_file}"
+            )
+            continue
+        output_path.mkdir(
+            exist_ok=True, parents=True
+        )  # If the output_dir does not exist, create it
+        rebuild_cbz(file, output_file)
 
-def rebuild_cbz(file: Path):
+
+def rebuild_cbz(input_file: Path, output_file: Path):
     """Create a new cbz file with the new naming structure
-        
-        Args:
-            file: The original cbz file
+
+    Args:
+        input_file: The original cbz file
+        output_file: The new file to write to
     """
+    # TODO: Write directly from zip to zip and skip the temp directory
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_dir = Path(tmp_dir)
-        with zipfile.ZipFile(file) as original_cbz:
+        with zipfile.ZipFile(input_file) as original_cbz:
             original_cbz.extractall(tmp_dir)
+        mapping = build_rename_mapping(tmp_dir)
+        with zipfile.ZipFile(output_file, mode="w") as new_cbz:
+            for (
+                file,
+                new_path,
+            ) in mapping.items():  # TODO: check if we need to set a compression level
+                new_cbz.write(
+                    file, arcname=new_path
+                )  # TODO: check if we need to set a compression level
+
+
+def build_rename_mapping(path: Path, prefix: Optional[Path] = None) -> Dict[Path, Path]:
+    """Returns a map with the original path/filenames as a key and the new path/filenames as value.
+    The purpose of this function is to provide the new file structure of the cbz.
+
+    Args:
+        path: the (sub)path to process renames of)
+        prefix: the part of theopath to ignore when renaming
+    """
+    if prefix is None:
+        # if no prefix is given, assume the path is the prefix
+        prefix = path
+    mapping = dict()
+    for sub_path in path.iterdir():
+        if sub_path.is_dir():
+            # if the sub-path is a directory, process it recursively
+            mapping.update(build_rename_mapping(sub_path, prefix))
+            continue
+        if not sub_path.is_file():
+            # if the sub_path is not a file or directory, skip it
+            continue
+        # create a mapping from the original path to a single filename with the
+        zip_path = sub_path.relative_to(
+            prefix
+        )  # The path the file had inside the zipfile
+        # map the original path to a new path where entire zip_path is inside the filename
+        mapping[sub_path] = zip_path.joinpath(
+            str(zip_path.as_posix()).replace("/", "_")
+        )
+    return mapping
 
 
 if __name__ == "__main__":
